@@ -1,0 +1,89 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+
+contract MaartionToken is ERC20, Ownable {
+
+    using SafeMath for uint256;
+
+    // Struct to hold educator details
+    struct Educator {
+        bool isActive;
+        uint256 totalRewards;
+    }
+
+    // Struct to hold student details
+    struct Student {
+        uint256 totalRewards;
+        mapping(uint256 => bool) completedCourses;
+    }
+
+    mapping(address => Educator) public educators;
+    mapping(address => Student) public students;
+    mapping(uint256 => string) public courses;
+
+    event TokensMinted(address indexed to, uint256 amount);
+    event EducatorAdded(address indexed educator);
+    event EducatorRemoved(address indexed educator);
+    event CourseCompleted(address indexed student, uint256 courseId);
+
+    constructor() ERC20("MaartionToken", "MART") {}
+
+    modifier onlyEducator() {
+        require(educators[msg.sender].isActive, "Only active educators can perform this action");
+        _;
+    }
+
+    function addEducator(address _educator) public onlyOwner {
+        educators[_educator].isActive = true;
+        emit EducatorAdded(_educator);
+    }
+
+    function removeEducator(address _educator) public onlyOwner {
+        educators[_educator].isActive = false;
+        emit EducatorRemoved(_educator);
+    }
+
+    function rewardStudent(address _student, uint256 _amount, uint256 _courseId) public onlyEducator {
+        require(!students[_student].completedCourses[_courseId], "Course already completed by student");
+        
+        _mint(_student, _amount);
+        students[_student].totalRewards = students[_student].totalRewards.add(_amount);
+        students[_student].completedCourses[_courseId] = true;
+        
+        emit TokensMinted(_student, _amount);
+        emit CourseCompleted(_student, _courseId);
+    }
+
+    function rewardEducator(address _educator, uint256 _amount) public onlyOwner {
+        require(educators[_educator].isActive, "Educator must be active to receive rewards");
+        
+        _mint(_educator, _amount);
+        educators[_educator].totalRewards = educators[_educator].totalRewards.add(_amount);
+        
+        emit TokensMinted(_educator, _amount);
+    }
+
+    function addCourse(uint256 _courseId, string memory _courseName) public onlyOwner {
+        courses[_courseId] = _courseName;
+    }
+
+    function getStudentRewards(address _student) public view returns (uint256) {
+        return students[_student].totalRewards;
+    }
+
+    function getEducatorRewards(address _educator) public view returns (uint256) {
+        return educators[_educator].totalRewards;
+    }
+
+    function hasCompletedCourse(address _student, uint256 _courseId) public view returns (bool) {
+        return students[_student].completedCourses[_courseId];
+    }
+
+    function transferOwnership(address newOwner) public override onlyOwner {
+        super.transferOwnership(newOwner);
+    }
+}
